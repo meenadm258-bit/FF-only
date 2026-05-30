@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FF Proxy Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{background:#000;font-family:'Rajdhani',sans-serif;overflow-x:hidden;}
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:#111;}
+  ::-webkit-scrollbar-thumb{background:#ff4500;border-radius:2px;}
+
+  /* ── LOADING ── */
+  #loading{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;overflow:hidden;}
+  #bg-glow{position:absolute;inset:0;background:radial-gradient(ellipse at center,#1a0500 0%,#000 70%);animation:bgPulse 2s ease-in-out infinite alternate;}
+  #fire-bottom{position:absolute;bottom:0;left:0;right:0;height:200px;background:linear-gradient(to top,#ff4500 0%,#ff8c00 30%,transparent 100%);opacity:.12;animation:firePulse 1.5s ease-in-out infinite alternate;}
+  .spark{position:absolute;border-radius:50%;animation:sparkFade ease-in-out infinite alternate;}
+  #logo-area{position:relative;z-index:2;text-align:center;opacity:0;transform:scale(.5);transition:all .8s cubic-bezier(.175,.885,.32,1.275);}
+  #logo-area.show{opacity:1;transform:scale(1);}
+  #diamond{width:100px;height:100px;margin:0 auto 16px;position:relative;}
+  #diamond-outer{width:100%;height:100%;background:linear-gradient(135deg,#ff6b00,#ff0000,#ff8c00);clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);animation:diamondGlow 3s ease-in-out infinite alternate;box-shadow:0 0 40px #ff4500;}
+  #diamond-inner{position:absolute;inset:15px;background:linear-gradient(135deg,#fff3e0,#ff8c00);clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);}
+  #diamond-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;color:#fff;text-shadow:0 0 10px #ff4500;}
+  #load-title{font-family:'Orbitron',sans-serif;font-size:22px;font-weight:900;color:#ff8c00;letter-spacing:6px;text-shadow:0 0 20px #ff4500,0 0 40px #ff0000;opacity:0;transform:translateY(20px);transition:all .6s ease .3s;}
+  #load-title.show{opacity:1;transform:translateY(0);}
+  #load-sub{font-size:13px;color:#ff6b00;letter-spacing:3px;margin-top:8px;opacity:0;transition:all .5s ease .5s;}
+  #load-sub.show{opacity:1;}
+  #progress-area{position:absolute;bottom:80px;left:10%;right:10%;z-index:2;opacity:0;transition:opacity .5s ease;}
+  #progress-area.show{opacity:1;}
+  #prog-labels{display:flex;justify-content:space-between;margin-bottom:8px;}
+  #prog-labels span{color:#ff8c00;font-size:11px;letter-spacing:2px;}
+  #prog-track{height:4px;background:#1a0500;border:1px solid #ff4500;border-radius:2px;overflow:hidden;}
+  #prog-bar{height:100%;width:0%;background:linear-gradient(90deg,#ff4500,#ff8c00,#ffcc00);transition:width .1s linear;box-shadow:0 0 10px #ff8c00;position:relative;}
+  #prog-bar::after{content:'';position:absolute;right:0;top:0;bottom:0;width:20px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5));}
+  #prog-label{color:#ff4500;font-size:10px;letter-spacing:1px;margin-top:6px;text-align:center;}
+
+  /* ── MAIN ── */
+  #app{display:none;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#1a0500 0%,#0a0a0a 60%,#000 100%);position:relative;overflow:hidden;}
+  #app-fire{position:fixed;bottom:0;left:0;right:0;height:150px;background:linear-gradient(to top,rgba(255,69,0,.12),transparent);pointer-events:none;}
+  .amb-particle{position:absolute;border-radius:50%;background:#ff4500;animation:float ease-in-out infinite alternate;opacity:.3;}
+  #admin-trigger{position:fixed;top:0;left:0;width:50px;height:50px;z-index:100;cursor:default;}
+  #pending-badge{position:fixed;top:8px;left:8px;background:#f44336;color:#fff;border-radius:50%;width:18px;height:18px;display:none;align-items:center;justify-content:center;font-size:10px;font-weight:700;z-index:101;animation:pulse 1s ease-in-out infinite;}
+  #main-content{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px 20px 40px;position:relative;z-index:2;}
+  #main-diamond{width:90px;height:90px;margin:0 auto 16px;background:linear-gradient(135deg,#ff6b00,#ff0000);clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);display:flex;align-items:center;justify-content:center;box-shadow:0 0 40px #ff4500;animation:diamondPulse 2s ease-in-out infinite alternate;}
+  #main-diamond span{font-family:'Orbitron',sans-serif;font-size:22px;font-weight:900;color:#fff;}
+  #main-title{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:900;color:#ff8c00;letter-spacing:4px;text-shadow:0 0 30px #ff4500;text-align:center;}
+  #main-sub{font-size:11px;color:rgba(255,69,0,.6);letter-spacing:3px;margin-top:4px;text-align:center;}
+  #status-card{background:linear-gradient(135deg,#1a0800,#0d0d0d);border:1px solid rgba(255,69,0,.2);border-radius:20px;padding:28px 24px;text-align:center;max-width:340px;width:100%;margin:32px 0 24px;box-shadow:0 8px 40px rgba(255,69,0,.1),inset 0 1px 0 rgba(255,69,0,.1);}
+  #online-dot{width:14px;height:14px;border-radius:50%;background:#4caf50;margin:0 auto 12px;box-shadow:0 0 12px #4caf50;animation:blink 1.5s ease-in-out infinite;}
+  #online-txt{font-size:12px;color:#4caf50;letter-spacing:3px;margin-bottom:8px;}
+  #status-desc{font-size:13px;color:#888;line-height:1.7;}
+  #status-desc span{color:#ff8c00;}
+  #activate-btn{padding:18px 40px;background:linear-gradient(90deg,#ff6b00,#ff4500);border:none;border-radius:50px;color:#fff;font-family:'Orbitron',sans-serif;font-size:14px;font-weight:700;letter-spacing:3px;cursor:pointer;box-shadow:0 0 20px rgba(255,69,0,.4);position:relative;overflow:hidden;transition:all .8s ease;}
+  #activate-btn.glow{background:linear-gradient(90deg,#ff4500,#ff8c00,#ffcc00);box-shadow:0 0 40px #ff8c00,0 0 80px rgba(255,69,0,.3);transform:scale(1.03);}
+  #activate-btn .shine{position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);transform:translateX(-200%);transition:transform 1.5s ease;}
+  #activate-btn.glow .shine{transform:translateX(200%);}
+  #btn-note{font-size:11px;color:#444;margin-top:16px;letter-spacing:2px;}
+
+  /* ── MODAL BASE ── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px;backdrop-filter:blur(6px);}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:linear-gradient(160deg,#0d0d0d,#1a0800);border:1px solid #ff4500;border-radius:16px;max-width:400px;width:100%;box-shadow:0 0 40px rgba(255,69,0,.3);overflow:hidden;max-height:90vh;overflow-y:auto;}
+  .modal-header{background:linear-gradient(90deg,#ff4500,#ff8c00);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;}
+  .modal-header-left div:first-child{font-family:'Orbitron',sans-serif;font-size:13px;color:#fff;font-weight:700;letter-spacing:2px;}
+  .modal-header-left div:last-child{font-size:11px;color:rgba(255,255,255,.7);letter-spacing:1px;}
+  .close-btn{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px;}
+  .modal-body{padding:20px;}
+
+  /* ── PAYMENT ── */
+  #price-section{text-align:center;margin-bottom:16px;}
+  #price-label{font-size:13px;color:#ff8c00;letter-spacing:2px;}
+  #price-amount{font-size:40px;font-weight:700;color:#ffcc00;font-family:'Orbitron',sans-serif;text-shadow:0 0 20px #ff8c00;}
+  #price-note{font-size:11px;color:#888;margin-top:2px;}
+  #qr-section{text-align:center;margin-bottom:16px;}
+  #qr-label{font-size:11px;color:#ff8c00;letter-spacing:2px;margin-bottom:8px;}
+  #qr-wrap{display:inline-block;padding:8px;background:#fff;border-radius:12px;border:2px solid #ff4500;box-shadow:0 0 20px rgba(255,69,0,.25);}
+  #qr-img{width:160px;height:160px;display:block;border-radius:8px;}
+  #qr-fallback{width:160px;height:160px;display:none;align-items:center;justify-content:center;flex-direction:column;color:#888;font-size:11px;}
+  #upi-txt{font-size:11px;color:#888;margin-top:8px;}
+  .field-label{display:block;font-size:11px;color:#ff8c00;letter-spacing:2px;margin-bottom:6px;}
+  .field-input{width:100%;padding:10px 14px;background:#111;border:1px solid #ff4500;border-radius:8px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;letter-spacing:1px;outline:none;margin-bottom:12px;}
+  #upload-zone{border:2px dashed #ff4500;border-radius:8px;padding:14px;text-align:center;cursor:pointer;background:#0d0d0d;margin-bottom:18px;transition:all .2s;}
+  #upload-zone:hover{background:#1a0800;}
+  #upload-icon{font-size:22px;}
+  #upload-txt{font-size:12px;color:#888;margin-top:4px;}
+  #submit-btn{width:100%;padding:13px;background:linear-gradient(90deg,#ff4500,#ff8c00);border:none;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;letter-spacing:3px;cursor:pointer;box-shadow:0 0 20px rgba(255,69,0,.4);transition:all .3s;}
+  #submit-btn:disabled{background:#333;box-shadow:none;cursor:not-allowed;}
+  #pending-screen{display:none;text-align:center;padding:20px 0;}
+  #pending-icon{width:70px;height:70px;margin:0 auto 16px;border-radius:50%;border:3px solid #ff8c00;display:flex;align-items:center;justify-content:center;font-size:30px;animation:pendingSpin 2s linear infinite;box-shadow:0 0 20px rgba(255,140,0,.3);}
+  #pending-title{font-family:'Orbitron',sans-serif;font-size:16px;color:#ffcc00;letter-spacing:2px;}
+  #pending-desc{color:#888;font-size:12px;margin-top:10px;line-height:1.6;}
+  #pending-uid-show{color:#ff8c00;}
+  #pending-close{margin-top:20px;padding:10px 30px;background:linear-gradient(90deg,#ff4500,#ff8c00);border:none;border-radius:8px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:14px;cursor:pointer;letter-spacing:2px;}
+
+  /* ── ADMIN ── */
+  #admin-modal .modal-box{max-width:480px;}
+  #admin-login{padding:32px;text-align:center;}
+  #admin-lock{font-size:30px;margin-bottom:12px;}
+  #admin-lock-title{font-family:'Orbitron',sans-serif;color:#ff8c00;font-size:14px;letter-spacing:3px;margin-bottom:20px;}
+  #admin-pass{width:100%;padding:10px 14px;background:#0d0d0d;border:1px solid #ff4500;border-radius:8px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:16px;text-align:center;letter-spacing:4px;outline:none;margin-bottom:14px;}
+  #admin-btns{display:flex;gap:10px;}
+  #admin-cancel-btn{flex:1;padding:10px;background:#222;border:1px solid #444;border-radius:8px;color:#888;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:14px;}
+  #admin-enter-btn{flex:1;padding:10px;background:linear-gradient(90deg,#ff4500,#ff8c00);border:none;border-radius:8px;color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;}
+  #admin-panel{display:none;flex-direction:column;max-height:90vh;}
+  #admin-panel-header{background:linear-gradient(90deg,#1a0500,#2a0d00);padding:14px 20px;border-bottom:1px solid rgba(255,69,0,.25);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;}
+  #admin-panel-title{font-family:'Orbitron',sans-serif;color:#ff8c00;font-size:13px;letter-spacing:2px;}
+  #admin-tabs{display:flex;border-bottom:1px solid rgba(255,69,0,.2);flex-shrink:0;}
+  .tab-btn{flex:1;padding:10px 6px;background:none;border:none;border-bottom:2px solid transparent;color:#666;font-family:'Rajdhani',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;transition:all .2s;}
+  .tab-btn.active{background:rgba(255,69,0,.1);border-bottom-color:#ff8c00;color:#ff8c00;}
+  #admin-content{overflow-y:auto;flex:1;padding:16px;}
+  .tab-pane{display:none;}
+  .tab-pane.active{display:block;}
+  .request-card{background:#111;border:1px solid rgba(255,69,0,.2);border-radius:10px;padding:14px;margin-bottom:12px;}
+  .req-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+  .req-uid{color:#ffcc00;font-weight:700;font-size:14px;}
+  .req-time{color:#555;font-size:11px;margin-top:2px;}
+  .status-badge{padding:4px 10px;border-radius:20px;font-size:10px;letter-spacing:1px;}
+  .badge-pending{background:rgba(255,135,0,.15);color:#ff8c00;}
+  .badge-approved{background:rgba(76,175,80,.15);color:#4caf50;}
+  .badge-cancelled{background:rgba(244,67,54,.15);color:#f44336;}
+  .view-ss-btn{background:none;border:1px solid rgba(255,69,0,.3);color:#ff8c00;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Rajdhani',sans-serif;margin-bottom:10px;}
+  .ss-preview{display:none;max-width:100%;border-radius:8px;border:1px solid #ff4500;margin-top:8px;}
+  .req-actions{display:flex;gap:8px;}
+  .approve-btn{flex:1;padding:9px;background:linear-gradient(90deg,#1b5e20,#4caf50);border:none;border-radius:8px;color:#fff;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;}
+  .reject-btn{flex:1;padding:9px;background:linear-gradient(90deg,#7f0000,#f44336);border:none;border-radius:8px;color:#fff;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;}
+  .empty-state{text-align:center;color:#444;padding:40px;}
+  .empty-icon{font-size:30px;}
+  .empty-txt{margin-top:10px;font-size:13px;}
+  #settings-pane .field-label{margin-top:16px;}
+  #save-btn{width:100%;padding:12px;background:linear-gradient(90deg,#ff4500,#ff8c00);border:none;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;margin-top:20px;transition:all .3s;}
+  #save-btn.saved{background:#4caf50;}
+  #qr-preview-section{margin-top:20px;text-align:center;}
+  #qr-preview-label{font-size:11px;color:#888;letter-spacing:2px;margin-bottom:8px;}
+  #qr-preview-img{width:120px;height:120px;border-radius:8px;border:2px solid #ff4500;background:#fff;}
+
+  /* ── KEYFRAMES ── */
+  @keyframes bgPulse{from{opacity:1}to{opacity:.7}}
+  @keyframes sparkFade{from{opacity:.2;transform:scale(.5)}to{opacity:1;transform:scale(1.5)}}
+  @keyframes firePulse{from{opacity:.08}to{opacity:.2}}
+  @keyframes diamondGlow{from{filter:brightness(1)}to{filter:brightness(1.3)}}
+  @keyframes diamondPulse{from{box-shadow:0 0 30px #ff4500}to{box-shadow:0 0 60px #ff8c00,0 0 100px rgba(255,69,0,.4)}}
+  @keyframes float{from{transform:translateY(0) scale(1)}to{transform:translateY(-20px) scale(1.2)}}
+  @keyframes blink{from{opacity:1}to{opacity:.4}}
+  @keyframes pulse{from{transform:scale(1)}to{transform:scale(1.2)}}
+  @keyframes pendingSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ════════════ LOADING SCREEN ════════════ -->
+<div id="loading">
+  <div id="bg-glow"></div>
+  <div id="fire-bottom"></div>
+  <div id="logo-area">
+    <div id="diamond">
+      <div id="diamond-outer"></div>
+      <div id="diamond-inner"></div>
+      <div id="diamond-text">FF</div>
+    </div>
+    <div id="load-title">PROXY PANEL</div>
+    <div id="load-sub">INITIALIZING SECURE CONNECTION...</div>
+  </div>
+  <div id="progress-area">
+    <div id="prog-labels"><span>LOADING</span><span id="prog-pct">0%</span></div>
+    <div id="prog-track"><div id="prog-bar"></div></div>
+    <div id="prog-label">FREE FIRE PROXY SYSTEM v2.0</div>
+  </div>
+</div>
+
+<!-- ════════════ MAIN APP ════════════ -->
+<div id="app">
+  <div id="app-fire"></div>
+  <div id="admin-trigger" onclick="openAdmin()"></div>
+  <div id="pending-badge">0</div>
+
+  <div id="main-content">
+    <div id="main-diamond"><span>FF</span></div>
+    <div id="main-title">PROXY PANEL</div>
+    <div id="main-sub">FREE FIRE SECURE ACCESS</div>
+
+    <div id="status-card">
+      <div id="online-dot"></div>
+      <div id="online-txt">SYSTEM ONLINE</div>
+      <div id="status-desc">
+        Free Fire Proxy System active.<br/>
+        Get permanent access to unlock<br/>
+        <span>premium proxy features.</span>
+      </div>
+    </div>
+
+    <button id="activate-btn" onclick="openPayment()">
+      <span class="shine"></span>
+      🔥 ACTIVE YOUR FF PROXY UID
+    </button>
+    <div id="btn-note">ONE-TIME PAYMENT • PERMANENT ACCESS</div>
+  </div>
+</div>
+
+<!-- ════════════ PAYMENT MODAL ════════════ -->
+<div class="modal-overlay" id="payment-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <div>💎 PAID ACCESS</div>
+        <div>PERMANENT</div>
+      </div>
+      <button class="close-btn" onclick="closePayment()">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Form -->
+      <div id="payment-form">
+        <div id="price-section">
+          <div id="price-label">AMOUNT TO PAY</div>
+          <div id="price-amount">₹99</div>
+          <div id="price-note">ONE TIME | PERMANENT ACCESS</div>
+        </div>
+        <div id="qr-section">
+          <div id="qr-label">SCAN TO PAY</div>
+          <div id="qr-wrap">
+            <img id="qr-img" src="" alt="QR Code" onerror="showQrFallback()"/>
+            <div id="qr-fallback">
+              <div style="font-size:30px;margin-bottom:8px;">📱</div>
+              <div>QR Code</div>
+              <div id="qr-upi-fallback" style="color:#ff8c00;font-size:10px;margin-top:4px;"></div>
+            </div>
+          </div>
+          <div id="upi-txt"></div>
+        </div>
+        <label class="field-label">FREE FIRE UID</label>
+        <input class="field-input" id="uid-input" placeholder="Enter your FF UID" oninput="checkForm()"/>
+        <label class="field-label">PAYMENT SCREENSHOT</label>
+        <div id="upload-zone" onclick="document.getElementById('ss-file').click()">
+          <div id="upload-icon">📸</div>
+          <div id="upload-txt">Click to upload screenshot</div>
+        </div>
+        <input type="file" id="ss-file" accept="image/*" style="display:none" onchange="handleFile(this)"/>
+        <button id="submit-btn" disabled onclick="submitRequest()">SUBMIT REQUEST</button>
+      </div>
+      <!-- Pending -->
+      <div id="pending-screen">
+        <div id="pending-icon">⏳</div>
+        <div id="pending-title">REQUEST PENDING</div>
+        <div id="pending-desc">
+          Aapki request submit ho gayi hai.<br/>
+          Admin approval ke baad access milega.<br/>
+          <span id="pending-uid-show"></span>
+        </div>
+        <button id="pending-close" onclick="closePayment()">CLOSE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ ADMIN MODAL ════════════ -->
+<div class="modal-overlay" id="admin-modal">
+  <div class="modal-box" style="max-width:480px;">
+    <!-- Login -->
+    <div id="admin-login">
+      <div id="admin-lock">🔒</div>
+      <div id="admin-lock-title">ADMIN ACCESS</div>
+      <input type="password" id="admin-pass" placeholder="Enter Password" onkeydown="if(event.key==='Enter')tryAdminLogin()"/>
+      <div id="admin-btns">
+        <button id="admin-cancel-btn" onclick="closeAdmin()">CANCEL</button>
+        <button id="admin-enter-btn" onclick="tryAdminLogin()">ENTER</button>
+      </div>
+    </div>
+    <!-- Panel -->
+    <div id="admin-panel">
+      <div id="admin-panel-header">
+        <div id="admin-panel-title">⚙️ ADMIN PANEL</div>
+        <button class="close-btn" onclick="closeAdmin()" style="color:#ff4500;">✕</button>
+      </div>
+      <div id="admin-tabs">
+        <button class="tab-btn active" onclick="switchTab('requests')">REQUESTS (<span id="pending-count-tab">0</span>)</button>
+        <button class="tab-btn" onclick="switchTab('history')">HISTORY</button>
+        <button class="tab-btn" onclick="switchTab('settings')">SETTINGS</button>
+      </div>
+      <div id="admin-content">
+        <div class="tab-pane active" id="tab-requests">
+          <div id="requests-list"></div>
+        </div>
+        <div class="tab-pane" id="tab-history">
+          <div id="history-list"></div>
+        </div>
+        <div class="tab-pane" id="tab-settings" id="settings-pane">
+          <label class="field-label" style="margin-top:0;">QR CODE IMAGE LINK (ImgBB)</label>
+          <input class="field-input" id="s-qr" placeholder="https://i.ibb.co/..."/>
+          <label class="field-label">PRICE</label>
+          <input class="field-input" id="s-price" placeholder="₹99"/>
+          <label class="field-label">UPI ID</label>
+          <input class="field-input" id="s-upi" placeholder="yourname@upi"/>
+          <button id="save-btn" onclick="saveSettings()">SAVE SETTINGS</button>
+          <div id="qr-preview-section">
+            <div id="qr-preview-label">QR PREVIEW</div>
+            <img id="qr-preview-img" src="" alt="preview" onerror="this.style.display='none'" style="display:none;"/>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════
+let requests = JSON.parse(localStorage.getItem('ff_requests') || '[]');
+let settings = JSON.parse(localStorage.getItem('ff_settings') || 'null') || {
+  qrLink: '', price: '₹99', upiId: 'yourname@upi'
+};
+let screenshotData = null;
+let adminUnlocked = false;
+
+function saveRequests(){ localStorage.setItem('ff_requests', JSON.stringify(requests)); }
+function saveSettingsStorage(){ localStorage.setItem('ff_settings', JSON.stringify(settings)); }
+
+// ══════════════════════════════════════
+//  LOADING SCREEN
+// ══════════════════════════════════════
+(function initLoading(){
+  // Sparks
+  const ld = document.getElementById('loading');
+  for(let i=0;i<30;i++){
+    const s = document.createElement('div');
+    s.className = 'spark';
+    s.style.cssText = `left:${Math.random()*100}%;top:${Math.random()*100}%;width:${Math.random()*4+1}px;height:${Math.random()*4+1}px;background:hsl(${Math.random()>.5?30:15},100%,60%);animation-delay:${Math.random()*2}s;animation-duration:${Math.random()*1.5+.5}s;`;
+    ld.appendChild(s);
+  }
+
+  setTimeout(()=>{
+    document.getElementById('logo-area').classList.add('show');
+  },300);
+  setTimeout(()=>{
+    document.getElementById('load-title').classList.add('show');
+    document.getElementById('progress-area').classList.add('show');
+  },1200);
+  setTimeout(()=>{
+    document.getElementById('load-sub').classList.add('show');
+  },2200);
+
+  let p=0;
+  const iv = setInterval(()=>{
+    p += Math.random()*4+1;
+    if(p>=100){ p=100; clearInterval(iv); }
+    document.getElementById('prog-bar').style.width = p+'%';
+    document.getElementById('prog-pct').textContent = Math.round(p)+'%';
+  },60);
+
+  setTimeout(()=>{
+    document.getElementById('loading').style.opacity='0';
+    document.getElementById('loading').style.transition='opacity .5s';
+    setTimeout(()=>{
+      document.getElementById('loading').style.display='none';
+      startApp();
+    },500);
+  },4200);
+})();
+
+// ══════════════════════════════════════
+//  APP START
+// ══════════════════════════════════════
+function startApp(){
+  const app = document.getElementById('app');
+  app.style.display = 'block';
+
+  // Particles
+  for(let i=0;i<20;i++){
+    const p = document.createElement('div');
+    p.className = 'amb-particle';
+    p.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;width:${Math.random()*3+1}px;height:${Math.random()*3+1}px;animation-duration:${3+Math.random()*4}s;animation-delay:${Math.random()*2}s;`;
+    app.appendChild(p);
+  }
+
+  // Button glow toggle
+  const btn = document.getElementById('activate-btn');
+  setInterval(()=>{
+    btn.classList.toggle('glow');
+  },1500);
+
+  applySettings();
+  updateBadge();
+}
+
+// ══════════════════════════════════════
+//  SETTINGS
+// ══════════════════════════════════════
+function applySettings(){
+  document.getElementById('price-amount').textContent = settings.price || '₹99';
+  document.getElementById('upi-txt').textContent = 'UPI: '+(settings.upiId||'');
+  document.getElementById('qr-upi-fallback').textContent = settings.upiId||'';
+  const img = document.getElementById('qr-img');
+  if(settings.qrLink){
+    img.src = settings.qrLink;
+    img.style.display='block';
+    document.getElementById('qr-fallback').style.display='none';
+  } else {
+    showQrFallback();
+  }
+}
+
+function showQrFallback(){
+  document.getElementById('qr-img').style.display='none';
+  document.getElementById('qr-fallback').style.display='flex';
+}
+
+// ══════════════════════════════════════
+//  PAYMENT MODAL
+// ══════════════════════════════════════
+function openPayment(){
+  document.getElementById('payment-modal').classList.add('open');
+  document.getElementById('payment-form').style.display='block';
+  document.getElementById('pending-screen').style.display='none';
+  document.getElementById('uid-input').value='';
+  document.getElementById('upload-txt').textContent='Click to upload screenshot';
+  document.getElementById('upload-icon').textContent='📸';
+  document.getElementById('submit-btn').disabled=true;
+  screenshotData=null;
+  applySettings();
+}
+
+function closePayment(){
+  document.getElementById('payment-modal').classList.remove('open');
+}
+
+function handleFile(input){
+  const f = input.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    screenshotData = ev.target.result;
+    document.getElementById('upload-icon').textContent='✅';
+    document.getElementById('upload-txt').textContent=f.name;
+    document.getElementById('upload-txt').style.color='#4caf50';
+    checkForm();
+  };
+  reader.readAsDataURL(f);
+}
+
+function checkForm(){
+  const uid = document.getElementById('uid-input').value.trim();
+  document.getElementById('submit-btn').disabled = !(uid && screenshotData);
+}
+
+function submitRequest(){
+  const uid = document.getElementById('uid-input').value.trim();
+  const req = {
+    id: Date.now(),
+    uid,
+    screenshot: screenshotData,
+    time: new Date().toISOString(),
+    status: 'pending'
+  };
+  requests.push(req);
+  saveRequests();
+  updateBadge();
+
+  document.getElementById('payment-form').style.display='none';
+  document.getElementById('pending-uid-show').textContent='UID: '+uid;
+  document.getElementById('pending-screen').style.display='block';
+}
+
+// ══════════════════════════════════════
+//  ADMIN MODAL
+// ══════════════════════════════════════
+function openAdmin(){
+  document.getElementById('admin-modal').classList.add('open');
+  adminUnlocked = false;
+  document.getElementById('admin-login').style.display='block';
+  document.getElementById('admin-panel').style.display='none';
+  document.getElementById('admin-pass').value='';
+}
+
+function closeAdmin(){
+  document.getElementById('admin-modal').classList.remove('open');
+  adminUnlocked=false;
+}
+
+function tryAdminLogin(){
+  const pass = document.getElementById('admin-pass').value;
+  if(pass==='9075'){
+    adminUnlocked=true;
+    document.getElementById('admin-login').style.display='none';
+    document.getElementById('admin-panel').style.display='flex';
+    document.getElementById('s-qr').value = settings.qrLink||'';
+    document.getElementById('s-price').value = settings.price||'₹99';
+    document.getElementById('s-upi').value = settings.upiId||'';
+    updateQrPreview();
+    renderRequests();
+    renderHistory();
+  } else {
+    document.getElementById('admin-pass').value='';
+    document.getElementById('admin-pass').style.border='1px solid #f44336';
+    setTimeout(()=>document.getElementById('admin-pass').style.border='1px solid #ff4500',1000);
+  }
+}
+
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
+    b.classList.toggle('active', ['requests','history','settings'][i]===name);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function renderRequests(){
+  const pending = requests.filter(r=>r.status==='pending');
+  document.getElementById('pending-count-tab').textContent = pending.length;
+  const list = document.getElementById('requests-list');
+  if(pending.length===0){
+    list.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-txt">No pending requests</div></div>`;
+    return;
+  }
+  list.innerHTML = pending.map(r=>`
+    <div class="request-card">
+      <div class="req-head">
+        <div>
+          <div class="req-uid">FF UID: ${r.uid}</div>
+          <div class="req-time">${new Date(r.time).toLocaleString()}</div>
+        </div>
+        <div class="status-badge badge-pending">PENDING</div>
+      </div>
+      ${r.screenshot?`
+        <button class="view-ss-btn" onclick="toggleSS(this)">VIEW SCREENSHOT 📸</button>
+        <img class="ss-preview" src="${r.screenshot}" alt="screenshot"/>
+      `:''}
+      <div class="req-actions">
+        <button class="approve-btn" onclick="approveReq(${r.id})">✓ APPROVE</button>
+        <button class="reject-btn" onclick="rejectReq(${r.id})">✕ REJECT</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderHistory(){
+  const done = requests.filter(r=>r.status!=='pending').reverse();
+  const list = document.getElementById('history-list');
+  if(done.length===0){
+    list.innerHTML=`<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-txt">No history</div></div>`;
+    return;
+  }
+  list.innerHTML = done.map(r=>`
+    <div class="request-card" style="border-color:${r.status==='approved'?'rgba(76,175,80,.3)':'rgba(244,67,54,.3)'}">
+      <div class="req-head">
+        <div>
+          <div class="req-uid">UID: ${r.uid}</div>
+          <div class="req-time">${new Date(r.time).toLocaleString()}</div>
+        </div>
+        <div class="status-badge ${r.status==='approved'?'badge-approved':'badge-cancelled'}">${r.status.toUpperCase()}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleSS(btn){
+  const img = btn.nextElementSibling;
+  const showing = img.style.display==='block';
+  img.style.display = showing?'none':'block';
+  btn.textContent = showing?'VIEW SCREENSHOT 📸':'HIDE SCREENSHOT 📸';
+}
+
+function approveReq(id){
+  requests = requests.map(r=>r.id===id?{...r,status:'approved'}:r);
+  saveRequests(); updateBadge(); renderRequests(); renderHistory();
+}
+
+function rejectReq(id){
+  requests = requests.map(r=>r.id===id?{...r,status:'cancelled'}:r);
+  saveRequests(); updateBadge(); renderRequests(); renderHistory();
+}
+
+function updateBadge(){
+  const count = requests.filter(r=>r.status==='pending').length;
+  const badge = document.getElementById('pending-badge');
+  badge.textContent = count;
+  badge.style.display = count>0?'flex':'none';
+}
+
+function saveSettings(){
+  settings = {
+    qrLink: document.getElementById('s-qr').value.trim(),
+    price: document.getElementById('s-price').value.trim()||'₹99',
+    upiId: document.getElementById('s-upi').value.trim(),
+  };
+  saveSettingsStorage();
+  applySettings();
+  updateQrPreview();
+  const btn=document.getElementById('save-btn');
+  btn.textContent='✓ SAVED!'; btn.classList.add('saved');
+  setTimeout(()=>{ btn.textContent='SAVE SETTINGS'; btn.classList.remove('saved'); },2000);
+}
+
+function updateQrPreview(){
+  const img = document.getElementById('qr-preview-img');
+  const qr = document.getElementById('s-qr').value.trim();
+  if(qr){ img.src=qr; img.style.display='block'; }
+  else { img.style.display='none'; }
+}
+</script>
+</body>
+</html>
