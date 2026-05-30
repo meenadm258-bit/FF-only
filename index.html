@@ -1,0 +1,508 @@
+import { useState, useEffect, useRef } from "react";
+
+// ─── PERSISTENT STORAGE KEYS ───
+const STORAGE_KEYS = {
+  requests: "ff_proxy_requests",
+  settings: "ff_proxy_settings",
+};
+
+const defaultSettings = {
+  qrLink: "https://i.ibb.co/example/qr.png",
+  price: "₹99",
+  upiId: "yourname@upi",
+};
+
+function useStorage(key, fallback) {
+  const load = () => {
+    try {
+      const r = window.storage?.get ? null : null;
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch { return fallback; }
+  };
+  const [val, setVal] = useState(load);
+  const save = (v) => {
+    const next = typeof v === "function" ? v(val) : v;
+    setVal(next);
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+  };
+  return [val, save];
+}
+
+// ─── FF LOADING SCREEN ───
+function FFLoading({ onDone }) {
+  const [phase, setPhase] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [sparks, setSparks] = useState([]);
+
+  useEffect(() => {
+    // Generate sparks
+    setSparks(Array.from({ length: 30 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 4 + 1,
+      delay: Math.random() * 2,
+      dur: Math.random() * 1.5 + 0.5,
+    })));
+
+    const intervals = [
+      setTimeout(() => setPhase(1), 300),
+      setTimeout(() => setPhase(2), 1200),
+      setTimeout(() => setPhase(3), 2200),
+    ];
+
+    let p = 0;
+    const prog = setInterval(() => {
+      p += Math.random() * 4 + 1;
+      if (p >= 100) { p = 100; clearInterval(prog); }
+      setProgress(Math.min(p, 100));
+    }, 60);
+
+    const done = setTimeout(() => onDone(), 4200);
+    return () => { intervals.forEach(clearTimeout); clearInterval(prog); clearTimeout(done); };
+  }, []);
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "#000",
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      fontFamily: "'Rajdhani', sans-serif", overflow: "hidden", zIndex: 9999,
+    }}>
+      <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet" />
+
+      {/* BG animated gradient */}
+      <div style={{
+        position: "absolute", inset: 0,
+        background: "radial-gradient(ellipse at center, #1a0500 0%, #000 70%)",
+        animation: "bgPulse 2s ease-in-out infinite alternate",
+      }} />
+
+      {/* Sparks */}
+      {sparks.map(s => (
+        <div key={s.id} style={{
+          position: "absolute",
+          left: `${s.x}%`, top: `${s.y}%`,
+          width: s.size, height: s.size,
+          borderRadius: "50%",
+          background: `hsl(${Math.random() > 0.5 ? 30 : 15}, 100%, 60%)`,
+          animation: `sparkFade ${s.dur}s ${s.delay}s ease-in-out infinite alternate`,
+          opacity: 0.7,
+        }} />
+      ))}
+
+      {/* Fire lines */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0, height: "200px",
+        background: "linear-gradient(to top, #ff4500 0%, #ff8c00 30%, transparent 100%)",
+        opacity: 0.15,
+        animation: "firePulse 1.5s ease-in-out infinite alternate",
+      }} />
+
+      {/* Logo area */}
+      <div style={{
+        position: "relative", zIndex: 2, textAlign: "center",
+        opacity: phase >= 1 ? 1 : 0,
+        transform: phase >= 1 ? "scale(1)" : "scale(0.5)",
+        transition: "all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+      }}>
+        {/* FF Diamond */}
+        <div style={{
+          width: 100, height: 100, margin: "0 auto 16px",
+          position: "relative",
+        }}>
+          <div style={{
+            width: "100%", height: "100%",
+            background: "linear-gradient(135deg, #ff6b00, #ff0000, #ff8c00)",
+            clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+            animation: "diamondSpin 3s linear infinite",
+            boxShadow: "0 0 40px #ff4500",
+          }} />
+          <div style={{
+            position: "absolute", inset: "15px",
+            background: "linear-gradient(135deg, #fff3e0, #ff8c00)",
+            clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+          }} />
+          <div style={{
+            position: "absolute", inset: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "'Orbitron', sans-serif",
+            fontSize: 28, fontWeight: 900, color: "#fff",
+            textShadow: "0 0 10px #ff4500",
+          }}>FF</div>
+        </div>
+
+        <div style={{
+          fontFamily: "'Orbitron', sans-serif",
+          fontSize: 22, fontWeight: 900,
+          color: "#ff8c00",
+          letterSpacing: 6,
+          textShadow: "0 0 20px #ff4500, 0 0 40px #ff0000",
+          opacity: phase >= 2 ? 1 : 0,
+          transform: phase >= 2 ? "translateY(0)" : "translateY(20px)",
+          transition: "all 0.6s ease 0.3s",
+        }}>PROXY PANEL</div>
+
+        <div style={{
+          fontSize: 13, color: "#ff6b00", letterSpacing: 3,
+          marginTop: 8,
+          opacity: phase >= 3 ? 1 : 0,
+          transition: "all 0.5s ease",
+        }}>INITIALIZING SECURE CONNECTION...</div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{
+        position: "absolute", bottom: 80, left: "10%", right: "10%",
+        zIndex: 2,
+        opacity: phase >= 2 ? 1 : 0,
+        transition: "opacity 0.5s ease",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ color: "#ff8c00", fontSize: 11, letterSpacing: 2 }}>LOADING</span>
+          <span style={{ color: "#ff8c00", fontSize: 11, letterSpacing: 2 }}>{Math.round(progress)}%</span>
+        </div>
+        <div style={{
+          height: 4, background: "#1a0500",
+          border: "1px solid #ff4500",
+          borderRadius: 2, overflow: "hidden",
+        }}>
+          <div style={{
+            height: "100%", width: `${progress}%`,
+            background: "linear-gradient(90deg, #ff4500, #ff8c00, #ffcc00)",
+            transition: "width 0.1s linear",
+            boxShadow: "0 0 10px #ff8c00",
+            position: "relative",
+          }}>
+            <div style={{
+              position: "absolute", right: 0, top: 0, bottom: 0, width: 20,
+              background: "linear-gradient(90deg, transparent, #fff8)",
+            }} />
+          </div>
+        </div>
+        <div style={{ color: "#ff4500", fontSize: 10, letterSpacing: 1, marginTop: 6, textAlign: "center" }}>
+          FREE FIRE PROXY SYSTEM v2.0
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes bgPulse { from{opacity:1} to{opacity:0.7} }
+        @keyframes sparkFade { from{opacity:0.2;transform:scale(0.5)} to{opacity:1;transform:scale(1.5)} }
+        @keyframes firePulse { from{opacity:0.1} to{opacity:0.25} }
+        @keyframes diamondSpin { from{filter:hue-rotate(0deg)} to{filter:hue-rotate(30deg)} }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── PAYMENT MODAL ───
+function PaymentModal({ settings, onClose, onSubmit }) {
+  const [uid, setUid] = useState("");
+  const [screenshot, setScreenshot] = useState(null);
+  const [screenshotName, setScreenshotName] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const fileRef = useRef();
+
+  const handleFile = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    setScreenshotName(f.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => setScreenshot(ev.target.result);
+    reader.readAsDataURL(f);
+  };
+
+  const handleSubmit = () => {
+    if (!uid.trim() || !screenshot) return;
+    onSubmit({ uid: uid.trim(), screenshot, time: new Date().toISOString() });
+    setSubmitted(true);
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "#000a",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 1000, padding: 16,
+      backdropFilter: "blur(6px)",
+    }}>
+      <div style={{
+        background: "linear-gradient(160deg, #0d0d0d, #1a0800)",
+        border: "1px solid #ff4500",
+        borderRadius: 16, maxWidth: 400, width: "100%",
+        boxShadow: "0 0 40px #ff450055",
+        overflow: "hidden",
+        fontFamily: "'Rajdhani', sans-serif",
+      }}>
+        {/* Header */}
+        <div style={{
+          background: "linear-gradient(90deg, #ff4500, #ff8c00)",
+          padding: "14px 20px",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <div>
+            <div style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 13, color: "#fff", fontWeight: 700, letterSpacing: 2 }}>
+              💎 PAID ACCESS
+            </div>
+            <div style={{ fontSize: 11, color: "#fff9", letterSpacing: 1 }}>PERMANENT</div>
+          </div>
+          <button onClick={onClose} style={{
+            background: "none", border: "none", color: "#fff",
+            fontSize: 22, cursor: "pointer", padding: 4,
+          }}>✕</button>
+        </div>
+
+        <div style={{ padding: 20 }}>
+          {!submitted ? (
+            <>
+              {/* Price */}
+              <div style={{ textAlign: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 13, color: "#ff8c00", letterSpacing: 2 }}>AMOUNT TO PAY</div>
+                <div style={{
+                  fontSize: 40, fontWeight: 700, color: "#ffcc00",
+                  fontFamily: "'Orbitron', sans-serif",
+                  textShadow: "0 0 20px #ff8c00",
+                }}>{settings.price}</div>
+                <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>ONE TIME | PERMANENT ACCESS</div>
+              </div>
+
+              {/* QR */}
+              <div style={{ textAlign: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: "#ff8c00", letterSpacing: 2, marginBottom: 8 }}>SCAN TO PAY</div>
+                <div style={{
+                  display: "inline-block", padding: 8,
+                  background: "#fff", borderRadius: 12,
+                  border: "2px solid #ff4500",
+                  boxShadow: "0 0 20px #ff450044",
+                }}>
+                  {!imgError ? (
+                    <img
+                      src={settings.qrLink}
+                      alt="QR Code"
+                      style={{ width: 160, height: 160, display: "block", borderRadius: 8 }}
+                      onError={() => setImgError(true)}
+                    />
+                  ) : (
+                    <div style={{
+                      width: 160, height: 160, display: "flex",
+                      alignItems: "center", justifyContent: "center",
+                      flexDirection: "column", color: "#888", fontSize: 11,
+                    }}>
+                      <div style={{ fontSize: 30, marginBottom: 8 }}>📱</div>
+                      <div>QR Code</div>
+                      <div style={{ color: "#ff8c00", fontSize: 10, marginTop: 4 }}>{settings.upiId}</div>
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: "#888", marginTop: 8 }}>UPI: {settings.upiId}</div>
+              </div>
+
+              {/* UID Input */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 11, color: "#ff8c00", letterSpacing: 2, marginBottom: 6 }}>
+                  FREE FIRE UID
+                </label>
+                <input
+                  value={uid}
+                  onChange={e => setUid(e.target.value)}
+                  placeholder="Enter your FF UID"
+                  style={{
+                    width: "100%", padding: "10px 14px",
+                    background: "#111", border: "1px solid #ff4500",
+                    borderRadius: 8, color: "#fff",
+                    fontFamily: "'Rajdhani', sans-serif",
+                    fontSize: 15, letterSpacing: 1,
+                    outline: "none", boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              {/* Screenshot Upload */}
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ display: "block", fontSize: 11, color: "#ff8c00", letterSpacing: 2, marginBottom: 6 }}>
+                  PAYMENT SCREENSHOT
+                </label>
+                <div
+                  onClick={() => fileRef.current.click()}
+                  style={{
+                    border: "2px dashed #ff4500", borderRadius: 8,
+                    padding: "14px", textAlign: "center",
+                    cursor: "pointer", background: "#0d0d0d",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <div style={{ fontSize: 22 }}>{screenshot ? "✅" : "📸"}</div>
+                  <div style={{ fontSize: 12, color: screenshot ? "#4caf50" : "#888", marginTop: 4 }}>
+                    {screenshotName || "Click to upload screenshot"}
+                  </div>
+                </div>
+                <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
+              </div>
+
+              <button
+                onClick={handleSubmit}
+                disabled={!uid.trim() || !screenshot}
+                style={{
+                  width: "100%", padding: "13px",
+                  background: uid.trim() && screenshot
+                    ? "linear-gradient(90deg, #ff4500, #ff8c00)"
+                    : "#333",
+                  border: "none", borderRadius: 10,
+                  color: "#fff", fontFamily: "'Orbitron', sans-serif",
+                  fontSize: 13, fontWeight: 700, letterSpacing: 3,
+                  cursor: uid.trim() && screenshot ? "pointer" : "not-allowed",
+                  transition: "all 0.3s",
+                  boxShadow: uid.trim() && screenshot ? "0 0 20px #ff450066" : "none",
+                }}
+              >
+                SUBMIT REQUEST
+              </button>
+            </>
+          ) : (
+            /* Pending screen */
+            <div style={{ textAlign: "center", padding: "20px 0" }}>
+              <div style={{
+                width: 70, height: 70, margin: "0 auto 16px",
+                borderRadius: "50%",
+                border: "3px solid #ff8c00",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 30,
+                animation: "pendingSpin 2s linear infinite",
+                boxShadow: "0 0 20px #ff8c0055",
+              }}>⏳</div>
+              <div style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 16, color: "#ffcc00", letterSpacing: 2 }}>
+                REQUEST PENDING
+              </div>
+              <div style={{ color: "#888", fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
+                Aapki request submit ho gayi hai.<br />
+                Admin approval ke baad access milega.<br />
+                <span style={{ color: "#ff8c00" }}>UID: {uid}</span>
+              </div>
+              <button onClick={onClose} style={{
+                marginTop: 20, padding: "10px 30px",
+                background: "linear-gradient(90deg, #ff4500, #ff8c00)",
+                border: "none", borderRadius: 8, color: "#fff",
+                fontFamily: "'Rajdhani', sans-serif",
+                fontSize: 14, cursor: "pointer", letterSpacing: 2,
+              }}>CLOSE</button>
+              <style>{`@keyframes pendingSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ADMIN PANEL ───
+function AdminPanel({ onClose, requests, onApprove, onCancel, settings, onSaveSettings }) {
+  const [password, setPassword] = useState("");
+  const [unlocked, setUnlocked] = useState(false);
+  const [tab, setTab] = useState("requests");
+  const [localSettings, setLocalSettings] = useState(settings);
+  const [saved, setSaved] = useState(false);
+
+  const tryLogin = () => {
+    if (password === "9075") setUnlocked(true);
+    else { setPassword(""); alert("Wrong password!"); }
+  };
+
+  const saveSettings = () => {
+    onSaveSettings(localSettings);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const pending = requests.filter(r => r.status === "pending");
+  const approved = requests.filter(r => r.status === "approved");
+  const cancelled = requests.filter(r => r.status === "cancelled");
+
+  if (!unlocked) {
+    return (
+      <div style={{
+        position: "fixed", inset: 0, background: "#000c",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, backdropFilter: "blur(10px)",
+        fontFamily: "'Rajdhani', sans-serif",
+      }}>
+        <div style={{
+          background: "#111", border: "1px solid #ff4500",
+          borderRadius: 16, padding: 32, textAlign: "center",
+          maxWidth: 300, width: "90%",
+          boxShadow: "0 0 40px #ff450055",
+        }}>
+          <div style={{ fontSize: 30, marginBottom: 12 }}>🔒</div>
+          <div style={{ fontFamily: "'Orbitron', sans-serif", color: "#ff8c00", fontSize: 14, letterSpacing: 3, marginBottom: 20 }}>
+            ADMIN ACCESS
+          </div>
+          <input
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && tryLogin()}
+            placeholder="Enter Password"
+            style={{
+              width: "100%", padding: "10px 14px",
+              background: "#0d0d0d", border: "1px solid #ff4500",
+              borderRadius: 8, color: "#fff",
+              fontFamily: "'Rajdhani', sans-serif",
+              fontSize: 16, textAlign: "center", letterSpacing: 4,
+              outline: "none", marginBottom: 14, boxSizing: "border-box",
+            }}
+          />
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={onClose} style={{
+              flex: 1, padding: 10, background: "#222",
+              border: "1px solid #444", borderRadius: 8, color: "#888",
+              cursor: "pointer", fontFamily: "'Rajdhani', sans-serif",
+            }}>CANCEL</button>
+            <button onClick={tryLogin} style={{
+              flex: 1, padding: 10,
+              background: "linear-gradient(90deg, #ff4500, #ff8c00)",
+              border: "none", borderRadius: 8, color: "#fff",
+              cursor: "pointer", fontFamily: "'Orbitron', sans-serif",
+              fontSize: 11, letterSpacing: 2,
+            }}>ENTER</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "#000e",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 2000, backdropFilter: "blur(8px)",
+      fontFamily: "'Rajdhani', sans-serif", padding: 12,
+    }}>
+      <div style={{
+        background: "#0d0d0d", border: "1px solid #ff4500",
+        borderRadius: 16, width: "100%", maxWidth: 480,
+        maxHeight: "90vh", overflow: "hidden",
+        display: "flex", flexDirection: "column",
+        boxShadow: "0 0 50px #ff450033",
+      }}>
+        {/* Header */}
+        <div style={{
+          background: "linear-gradient(90deg, #1a0500, #2a0d00)",
+          padding: "14px 20px",
+          borderBottom: "1px solid #ff450044",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          flexShrink: 0,
+        }}>
+          <div style={{ fontFamily: "'Orbitron', sans-serif", color: "#ff8c00", fontSize: 13, letterSpacing: 2 }}>
+            ⚙️ ADMIN PANEL
+          </div>
+          <button onClick={onClose} style={{
+            background: "none", border: "none", color: "#ff4500",
+            fontSize: 20, cursor: "pointer",
+          }}>✕</button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", borderBottom: "1px solid #ff450033", flexShrink: 0 }}>
+          {[
+            { key: "requests", label: `REQUESTS (${pending.length})` },
+            { 
