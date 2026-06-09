@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FF Proxy Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{background:#000;font-family:'Rajdhani',sans-serif;overflow-x:hidden;}
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:#111;}
+  ::-webkit-scrollbar-thumb{background:#ff4500;border-radius:2px;}
+
+  /* LOADING */
+  #loading{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;overflow:hidden;}
+  #bg-glow{position:absolute;inset:0;background:radial-gradient(ellipse at center,#1a0500 0%,#000 70%);animation:bgPulse 2s ease-in-out infinite alternate;}
+  #fire-bottom{position:absolute;bottom:0;left:0;right:0;height:200px;background:linear-gradient(to top,#ff4500 0%,#ff8c00 30%,transparent 100%);opacity:.12;animation:firePulse 1.5s ease-in-out infinite alternate;}
+  #logo-area{position:relative;z-index:2;text-align:center;opacity:0;transform:scale(.5);transition:all .8s cubic-bezier(.175,.885,.32,1.275);}
+  #logo-area.show{opacity:1;transform:scale(1);}
+  #diamond{width:100px;height:100px;margin:0 auto 16px;position:relative;}
+  #diamond-outer{width:100%;height:100%;background:linear-gradient(135deg,#ff6b00,#ff0000,#ff8c00);clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);animation:diamondGlow 3s ease-in-out infinite alternate;box-shadow:0 0 40px #ff4500;}
+  #diamond-inner{position:absolute;inset:15px;background:linear-gradient(135deg,#fff3e0,#ff8c00);clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);}
+  #diamond-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;color:#fff;text-shadow:0 0 10px #ff4500;}
+  #load-title{font-family:'Orbitron',sans-serif;font-size:22px;font-weight:900;color:#ff8c00;letter-spacing:6px;text-shadow:0 0 20px #ff4500,0 0 40px #ff0000;opacity:0;transform:translateY(20px);transition:all .6s ease .3s;}
+  #load-title.show{opacity:1;transform:translateY(0);}
+  #load-sub{font-size:13px;color:#ff6b00;letter-spacing:3px;margin-top:8px;opacity:0;transition:all .5s ease .5s;}
+  #load-sub.show{opacity:1;}
+  #progress-area{position:absolute;bottom:80px;left:10%;right:10%;z-index:2;opacity:0;transition:opacity .5s ease;}
+  #progress-area.show{opacity:1;}
+  #prog-labels{display:flex;justify-content:space-between;margin-bottom:8px;}
+  #prog-labels span{color:#ff8c00;font-size:11px;letter-spacing:2px;}
+  #prog-track{height:4px;background:#1a0500;border:1px solid #ff4500;border-radius:2px;overflow:hidden;}
+  #prog-bar{height:100%;width:0%;background:linear-gradient(90deg,#ff4500,#ff8c00,#ffcc00);transition:width .1s linear;box-shadow:0 0 10px #ff8c00;position:relative;}
+  #prog-bar::after{content:'';position:absolute;right:0;top:0;bottom:0;width:20px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5));}
+  #prog-label{color:#ff4500;font-size:10px;letter-spacing:1px;margin-top:6px;text-align:center;}
+
+  /* APP */
+  #app{display:none;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#1a0500 0%,#0a0a0a 60%,#000 100%);position:relative;overflow:hidden;}
+  #app-fire{position:fixed;bottom:0;left:0;right:0;height:150px;background:linear-gradient(to top,rgba(255,69,0,.12),transparent);pointer-events:none;}
+  #admin-trigger{position:fixed;top:0;left:0;width:50px;height:50px;z-index:100;cursor:default;}
+  #pending-badge{position:fixed;top:8px;left:8px;background:#f44336;color:#fff;border-radius:50%;width:18px;height:18px;display:none;align-items:center;justify-content:center;font-size:10px;font-weight:700;z-index:101;animation:pulse 1s ease-in-out infinite;}
+  #main-content{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px 20px 40px;position:relative;z-index:2;}
+  #main-diamond{width:90px;height:90px;margin:0 auto 16px;background:linear-gradient(135deg,#ff6b00,#ff0000);clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);display:flex;align-items:center;justify-content:center;box-shadow:0 0 40px #ff4500;animation:diamondPulse 2s ease-in-out infinite alternate;}
+  #main-diamond span{font-family:'Orbitron',sans-serif;font-size:22px;font-weight:900;color:#fff;}
+  #main-title{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:900;color:#ff8c00;letter-spacing:4px;text-shadow:0 0 30px #ff4500;text-align:center;}
+  #main-sub{font-size:11px;color:rgba(255,69,0,.6);letter-spacing:3px;margin-top:4px;text-align:center;}
+  #status-card{background:linear-gradient(135deg,#1a0800,#0d0d0d);border:1px solid rgba(255,69,0,.2);border-radius:20px;padding:28px 24px;text-align:center;max-width:340px;width:100%;margin:32px 0 24px;box-shadow:0 8px 40px rgba(255,69,0,.1),inset 0 1px 0 rgba(255,69,0,.1);}
+  #online-dot{width:14px;height:14px;border-radius:50%;background:#4caf50;margin:0 auto 12px;box-shadow:0 0 12px #4caf50;animation:blink 1.5s ease-in-out infinite;}
+  #online-txt{font-size:12px;color:#4caf50;letter-spacing:3px;margin-bottom:8px;}
+  #status-desc{font-size:13px;color:#888;line-height:1.7;}
+  #status-desc span{color:#ff8c00;}
+
+  /* BUTTONS */
+  .main-btn{padding:16px 36px;border:none;border-radius:50px;color:#fff;font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;cursor:pointer;position:relative;overflow:hidden;transition:all .3s;margin-bottom:14px;width:100%;max-width:320px;}
+  #activate-btn{background:linear-gradient(90deg,#ff6b00,#ff4500);box-shadow:0 0 20px rgba(255,69,0,.4);}
+  #activate-btn:hover{box-shadow:0 0 40px rgba(255,69,0,.6);transform:scale(1.02);}
+  #recover-btn{background:linear-gradient(90deg,#1a237e,#3949ab);box-shadow:0 0 20px rgba(57,73,171,.4);}
+  #recover-btn:hover{box-shadow:0 0 40px rgba(57,73,171,.6);transform:scale(1.02);}
+  .btn-note{font-size:10px;color:#444;letter-spacing:2px;margin-bottom:20px;text-align:center;}
+
+  /* MODAL */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px;backdrop-filter:blur(6px);}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:linear-gradient(160deg,#0d0d0d,#1a0800);border:1px solid #ff4500;border-radius:16px;max-width:400px;width:100%;box-shadow:0 0 40px rgba(255,69,0,.3);overflow:hidden;max-height:90vh;overflow-y:auto;}
+  .modal-box.blue-theme{border-color:#3949ab;box-shadow:0 0 40px rgba(57,73,171,.3);background:linear-gradient(160deg,#0d0d0d,#0a0a1a);}
+  .modal-header{background:linear-gradient(90deg,#ff4500,#ff8c00);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;}
+  .modal-header.blue{background:linear-gradient(90deg,#1a237e,#3949ab);}
+  .modal-header-left div:first-child{font-family:'Orbitron',sans-serif;font-size:13px;color:#fff;font-weight:700;letter-spacing:2px;}
+  .modal-header-left div:last-child{font-size:11px;color:rgba(255,255,255,.7);letter-spacing:1px;}
+  .close-btn{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px;}
+  .modal-body{padding:20px;}
+  .field-label{display:block;font-size:11px;color:#ff8c00;letter-spacing:2px;margin-bottom:6px;}
+  .field-label.blue{color:#7986cb;}
+  .field-input{width:100%;padding:10px 14px;background:#111;border:1px solid #ff4500;border-radius:8px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;letter-spacing:1px;outline:none;margin-bottom:12px;}
+  .field-input.blue{border-color:#3949ab;}
+  .upload-zone{border:2px dashed #ff4500;border-radius:8px;padding:14px;text-align:center;cursor:pointer;background:#0d0d0d;margin-bottom:18px;transition:all .2s;}
+  .upload-zone.blue{border-color:#3949ab;}
+  .upload-zone:hover{background:#1a0800;}
+  .upload-zone.blue:hover{background:#0a0a1a;}
+  .upload-icon{font-size:22px;}
+  .upload-txt{font-size:12px;color:#888;margin-top:4px;}
+  .upload-name{font-size:11px;color:#ff8c00;margin-top:4px;}
+  .upload-name.blue{color:#7986cb;}
+  .action-btn{width:100%;padding:13px;border:none;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;letter-spacing:3px;cursor:pointer;transition:all .3s;}
+  .action-btn.orange{background:linear-gradient(90deg,#ff4500,#ff8c00);box-shadow:0 0 20px rgba(255,69,0,.4);}
+  .action-btn.blue-btn{background:linear-gradient(90deg,#1a237e,#3949ab);box-shadow:0 0 20px rgba(57,73,171,.4);}
+  .action-btn:disabled{background:#333;box-shadow:none;cursor:not-allowed;}
+
+  /* SUCCESS SCREEN */
+  .success-screen{display:none;text-align:center;padding:20px 0;}
+  .success-icon{width:80px;height:80px;margin:0 auto 16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;}
+  .success-icon.orange{border:3px solid #ff8c00;animation:pendingSpin 3s linear infinite;box-shadow:0 0 20px rgba(255,140,0,.3);}
+  .success-icon.blue{border:3px solid #3949ab;animation:pendingSpin 3s linear infinite;box-shadow:0 0 20px rgba(57,73,171,.3);}
+  .success-title{font-family:'Orbitron',sans-serif;font-size:15px;letter-spacing:2px;}
+  .success-title.orange{color:#ffcc00;}
+  .success-title.blue{color:#7986cb;}
+  .success-desc{color:#888;font-size:12px;margin-top:10px;line-height:1.8;}
+  .success-uid{color:#ff8c00;font-weight:700;}
+  .success-uid.blue{color:#7986cb;}
+  .success-close{margin-top:20px;padding:10px 30px;border:none;border-radius:8px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:14px;cursor:pointer;letter-spacing:2px;}
+  .success-close.orange{background:linear-gradient(90deg,#ff4500,#ff8c00);}
+  .success-close.blue{background:linear-gradient(90deg,#1a237e,#3949ab);}
+
+  /* ADMIN */
+  #admin-modal .modal-box{max-width:500px;border-color:#ff4500;background:linear-gradient(160deg,#0d0d0d,#1a0800);}
+  #admin-login{padding:32px;text-align:center;}
+  #admin-lock{font-size:30px;margin-bottom:12px;}
+  #admin-lock-title{font-family:'Orbitron',sans-serif;color:#ff8c00;font-size:14px;letter-spacing:3px;margin-bottom:20px;}
+  #admin-pass{width:100%;padding:10px 14px;background:#0d0d0d;border:1px solid #ff4500;border-radius:8px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:16px;text-align:center;letter-spacing:4px;outline:none;margin-bottom:14px;}
+  #admin-btns{display:flex;gap:10px;}
+  #admin-cancel-btn{flex:1;padding:10px;background:#222;border:1px solid #444;border-radius:8px;color:#888;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:14px;}
+  #admin-enter-btn{flex:1;padding:10px;background:linear-gradient(90deg,#ff4500,#ff8c00);border:none;border-radius:8px;color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;}
+  #admin-panel{display:none;flex-direction:column;max-height:90vh;}
+  #admin-panel-header{background:linear-gradient(90deg,#1a0500,#2a0d00);padding:14px 20px;border-bottom:1px solid rgba(255,69,0,.25);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;}
+  #admin-panel-title{font-family:'Orbitron',sans-serif;color:#ff8c00;font-size:13px;letter-spacing:2px;}
+  #admin-tabs{display:flex;border-bottom:1px solid rgba(255,69,0,.2);flex-shrink:0;overflow-x:auto;}
+  .tab-btn{flex:1;min-width:80px;padding:10px 6px;background:none;border:none;border-bottom:2px solid transparent;color:#666;font-family:'Rajdhani',sans-serif;font-size:10px;letter-spacing:1px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+  .tab-btn.active{background:rgba(255,69,0,.1);border-bottom-color:#ff8c00;color:#ff8c00;}
+  #admin-content{overflow-y:auto;flex:1;padding:16px;}
+  .tab-pane{display:none;}
+  .tab-pane.active{display:block;}
+
+  /* REQUEST CARDS */
+  .request-card{background:#111;border:1px solid rgba(255,69,0,.2);border-radius:10px;padding:14px;margin-bottom:12px;}
+  .request-card.recover-card{border-color:rgba(57,73,171,.3);}
+  .req-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+  .req-uid{color:#ffcc00;font-weight:700;font-size:14px;}
+  .req-time{color:#555;font-size:11px;margin-top:2px;}
+  .req-type-tag{font-size:9px;letter-spacing:1px;padding:2px 8px;border-radius:10px;margin-bottom:8px;display:inline-block;}
+  .tag-proxy{background:rgba(255,69,0,.15);color:#ff8c00;}
+  .tag-recover{background:rgba(57,73,171,.2);color:#7986cb;}
+  .status-badge{padding:4px 10px;border-radius:20px;font-size:10px;letter-spacing:1px;}
+  .badge-pending{background:rgba(255,135,0,.15);color:#ff8c00;}
+  .badge-approved{background:rgba(76,175,80,.15);color:#4caf50;}
+  .badge-cancelled{background:rgba(244,67,54,.15);color:#f44336;}
+  .view-ss-btn{background:none;border:1px solid rgba(255,69,0,.3);color:#ff8c00;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Rajdhani',sans-serif;margin-bottom:10px;}
+  .view-ss-btn.blue{border-color:rgba(57,73,171,.4);color:#7986cb;}
+  .ss-preview{display:none;max-width:100%;border-radius:8px;border:1px solid #ff4500;margin-top:8px;}
+  .req-actions{display:flex;gap:8px;}
+  .approve-btn{flex:1;padding:9px;background:linear-gradient(90deg,#1b5e20,#4caf50);border:none;border-radius:8px;color:#fff;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;}
+  .reject-btn{flex:1;padding:9px;background:linear-gradient(90deg,#7f0000,#f44336);border:none;border-radius:8px;color:#fff;font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;cursor:pointer;}
+  .empty-state{text-align:center;color:#444;padding:40px;}
+  .empty-icon{font-size:30px;}
+  .empty-txt{margin-top:10px;font-size:13px;}
+
+  /* SETTINGS */
+  #save-btn{width:100%;padding:12px;background:linear-gradient(90deg,#ff4500,#ff8c00);border:none;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;cursor:pointer;margin-top:20px;transition:all .3s;}
+  #save-btn.saved{background:#4caf50;}
+  #qr-preview-section{margin-top:20px;text-align:center;}
+  #qr-preview-label{font-size:11px;color:#888;letter-spacing:2px;margin-bottom:8px;}
+  #qr-preview-img{width:120px;height:120px;border-radius:8px;border:2px solid #ff4500;background:#fff;display:none;}
+
+  /* FB STATUS */
+  #fb-status{position:fixed;bottom:16px;right:16px;display:flex;align-items:center;gap:6px;background:#111;border:1px solid #222;border-radius:20px;padding:6px 12px;z-index:50;}
+  #fb-dot{width:8px;height:8px;border-radius:50%;background:#888;transition:all .3s;}
+  #fb-dot.on{background:#4caf50;box-shadow:0 0 6px #4caf50;}
+  #fb-dot.err{background:#f44336;}
+  #fb-txt{font-size:10px;color:#555;letter-spacing:1px;}
+
+  @keyframes bgPulse{from{opacity:1}to{opacity:.7}}
+  @keyframes firePulse{from{opacity:.08}to{opacity:.2}}
+  @keyframes diamondGlow{from{filter:brightness(1)}to{filter:brightness(1.3)}}
+  @keyframes diamondPulse{from{box-shadow:0 0 30px #ff4500}to{box-shadow:0 0 60px #ff8c00,0 0 100px rgba(255,69,0,.4)}}
+  @keyframes blink{from{opacity:1}to{opacity:.4}}
+  @keyframes pulse{from{transform:scale(1)}to{transform:scale(1.2)}}
+  @keyframes pendingSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  @keyframes float{from{transform:translateY(0)}to{transform:translateY(-20px)}}
+</style>
+</head>
+<body>
+
+<!-- LOADING SCREEN -->
+<div id="loading">
+  <div id="bg-glow"></div>
+  <div id="fire-bottom"></div>
+  <div id="logo-area">
+    <div id="diamond">
+      <div id="diamond-outer"></div>
+      <div id="diamond-inner"></div>
+      <div id="diamond-text">FF</div>
+    </div>
+    <div id="load-title">PROXY PANEL</div>
+    <div id="load-sub">INITIALIZING SECURE CONNECTION...</div>
+  </div>
+  <div id="progress-area">
+    <div id="prog-labels"><span>LOADING</span><span id="prog-pct">0%</span></div>
+    <div id="prog-track"><div id="prog-bar"></div></div>
+    <div id="prog-label">FREE FIRE PROXY SYSTEM v2.0</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div id="app-fire"></div>
+  <div id="admin-trigger" onclick="openAdmin()"></div>
+  <div id="pending-badge">0</div>
+
+  <div id="main-content">
+    <div id="main-diamond"><span>FF</span></div>
+    <div id="main-title">PROXY PANEL</div>
+    <div id="main-sub">FREE FIRE SECURE ACCESS</div>
+
+    <div id="status-card">
+      <div id="online-dot"></div>
+      <div id="online-txt">SYSTEM ONLINE</div>
+      <div id="status-desc">Free Fire Proxy System active.<br/>Neeche diye buttons se apna kaam karein.<br/><span>Fast & Secure Service</span></div>
+    </div>
+
+    <button class="main-btn" id="activate-btn" onclick="openModal('payment-modal')">
+      🔥 ACTIVATE FF PROXY UID
+    </button>
+    <div class="btn-note">PROXY ACCESS • INSTANT ACTIVATION</div>
+
+    <button class="main-btn" id="recover-btn" onclick="openModal('recover-modal')">
+      🆔 FF ID RECOVER HELP
+    </button>
+    <div class="btn-note">ACCOUNT RECOVERY GUIDANCE • FREE</div>
+  </div>
+
+  <div id="fb-status"><div id="fb-dot"></div><span id="fb-txt">CONNECTING...</span></div>
+</div>
+
+<!-- PROXY PAYMENT MODAL -->
+<div class="modal-overlay" id="payment-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <div>🔥 PROXY ACCESS</div>
+        <div>PERMANENT ACTIVATION</div>
+      </div>
+      <button class="close-btn" onclick="closeModal('payment-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="proxy-form">
+        <div style="text-align:center;margin-bottom:16px;">
+          <div style="font-size:11px;color:#ff8c00;letter-spacing:2px;">AMOUNT TO PAY</div>
+          <div id="proxy-price" style="font-size:40px;font-weight:700;color:#ffcc00;font-family:'Orbitron',sans-serif;text-shadow:0 0 20px #ff8c00;">₹99</div>
+          <div style="font-size:11px;color:#888;">ONE TIME | PERMANENT ACCESS</div>
+        </div>
+        <div id="proxy-qr-section" style="text-align:center;margin-bottom:16px;">
+          <div style="font-size:11px;color:#ff8c00;letter-spacing:2px;margin-bottom:8px;">SCAN TO PAY</div>
+          <div style="display:inline-block;padding:8px;background:#fff;border-radius:12px;border:2px solid #ff4500;box-shadow:0 0 20px rgba(255,69,0,.25);">
+            <img id="proxy-qr-img" src="" style="width:160px;height:160px;display:block;border-radius:8px;" onerror="this.style.display='none';document.getElementById('proxy-qr-fallback').style.display='flex'"/>
+            <div id="proxy-qr-fallback" style="width:160px;height:160px;display:none;align-items:center;justify-content:center;flex-direction:column;color:#888;font-size:11px;">
+              <div style="font-size:30px;margin-bottom:8px;">📱</div>
+              <div>QR Code</div>
+            </div>
+          </div>
+          <div id="proxy-upi-txt" style="font-size:11px;color:#555;margin-top:6px;"></div>
+        </div>
+        <label class="field-label">FREE FIRE UID</label>
+        <input class="field-input" id="proxy-uid" placeholder="Enter your FF UID" oninput="checkProxyForm()"/>
+        <label class="field-label">PAYMENT SCREENSHOT</label>
+        <div class="upload-zone" onclick="document.getElementById('proxy-ss-file').click()">
+          <div class="upload-icon">📸</div>
+          <div class="upload-txt">Click to upload payment screenshot</div>
+          <div class="upload-name" id="proxy-ss-name"></div>
+        </div>
+        <input type="file" id="proxy-ss-file" accept="image/*" style="display:none" onchange="handleProxyFile(this)"/>
+        <button class="action-btn orange" id="proxy-submit-btn" disabled onclick="submitProxy()">SUBMIT REQUEST</button>
+      </div>
+      <div class="success-screen" id="proxy-success">
+        <div class="success-icon orange">⏳</div>
+        <div class="success-title orange">REQUEST PENDING</div>
+        <div class="success-desc">Aapki proxy request submit ho gayi hai.<br/>Admin verification ke baad access milega.<br/><br/><span class="success-uid" id="proxy-uid-show"></span></div>
+        <button class="success-close orange" onclick="closeModal('payment-modal')">CLOSE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RECOVER MODAL -->
+<div class="modal-overlay" id="recover-modal">
+  <div class="modal-box blue-theme">
+    <div class="modal-header blue">
+      <div class="modal-header-left">
+        <div>🆔 ID RECOVER HELP</div>
+        <div>ACCOUNT RECOVERY GUIDANCE</div>
+      </div>
+      <button class="close-btn" onclick="closeModal('recover-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="recover-form">
+        <div style="background:rgba(57,73,171,.1);border:1px solid rgba(57,73,171,.3);border-radius:10px;padding:12px;margin-bottom:16px;text-align:center;">
+          <div style="font-size:11px;color:#7986cb;letter-spacing:1px;line-height:1.7;">Apna FF UID aur ID ka photo daalo.<br/>Hum aapko pura recovery process guide karenge. ✅</div>
+        </div>
+        <label class="field-label blue">FREE FIRE UID</label>
+        <input class="field-input blue" id="recover-uid" placeholder="Enter your FF UID" oninput="checkRecoverForm()"/>
+        <label class="field-label blue">ID PHOTO (Aapki pehchaan ke liye)</label>
+        <div class="upload-zone blue" onclick="document.getElementById('recover-id-file').click()">
+          <div class="upload-icon">🪪</div>
+          <div class="upload-txt">Apni ID ka photo upload karein</div>
+          <div class="upload-name blue" id="recover-id-name"></div>
+        </div>
+        <input type="file" id="recover-id-file" accept="image/*" style="display:none" onchange="handleRecoverFile(this)"/>
+        <button class="action-btn blue-btn" id="recover-submit-btn" disabled onclick="submitRecover()">SUBMIT FOR REVIEW</button>
+      </div>
+      <div class="success-screen" id="recover-success">
+        <div class="success-icon blue">🔄</div>
+        <div class="success-title blue">REQUEST UNDER REVIEW</div>
+        <div class="success-desc">
+          Aapki ID recovery request submit ho gayi hai.<br/><br/>
+          <strong style="color:#7986cb;">UID:</strong> <span class="success-uid blue" id="recover-uid-show"></span><br/><br/>
+          Hum aapki details check kar rahe hain.<br/>
+          <strong style="color:#ffcc00;">Please wait — approximately 20 minutes.</strong><br/><br/>
+          <span style="color:#555;font-size:11px;">Recovery process complete hone par aapko guide kiya jayega.</span>
+        </div>
+        <button class="success-close blue" onclick="closeModal('recover-modal')">CLOSE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN MODAL -->
+<div class="modal-overlay" id="admin-modal">
+  <div class="modal-box" style="max-width:500px;">
+    <div id="admin-login">
+      <div id="admin-lock">🔒</div>
+      <div id="admin-lock-title">ADMIN ACCESS</div>
+      <input type="password" id="admin-pass" placeholder="Enter Password" onkeydown="if(event.key==='Enter')tryAdminLogin()"/>
+      <div id="admin-btns">
+        <button id="admin-cancel-btn" onclick="closeAdmin()">CANCEL</button>
+        <button id="admin-enter-btn" onclick="tryAdminLogin()">ENTER</button>
+      </div>
+    </div>
+    <div id="admin-panel">
+      <div id="admin-panel-header">
+        <div id="admin-panel-title">⚙️ ADMIN PANEL</div>
+        <button class="close-btn" onclick="closeAdmin()" style="color:#ff4500;">✕</button>
+      </div>
+      <div id="admin-tabs">
+        <button class="tab-btn active" onclick="switchTab('requests')">PROXY (<span id="proxy-count-tab">0</span>)</button>
+        <button class="tab-btn" onclick="switchTab('recover')">RECOVER (<span id="recover-count-tab">0</span>)</button>
+        <button class="tab-btn" onclick="switchTab('history')">HISTORY</button>
+        <button class="tab-btn" onclick="switchTab('settings')">SETTINGS</button>
+      </div>
+      <div id="admin-content">
+        <!-- PROXY REQUESTS -->
+        <div class="tab-pane active" id="tab-requests">
+          <div id="requests-list"></div>
+        </div>
+        <!-- RECOVER REQUESTS -->
+        <div class="tab-pane" id="tab-recover">
+          <div id="recover-list"></div>
+        </div>
+        <!-- HISTORY -->
+        <div class="tab-pane" id="tab-history">
+          <div id="history-list"></div>
+        </div>
+        <!-- SETTINGS -->
+        <div class="tab-pane" id="tab-settings">
+          <label class="field-label" style="margin-top:0;">ADMIN PASSWORD</label>
+          <input class="field-input" id="s-pass" placeholder="New password"/>
+          <label class="field-label">QR CODE IMAGE LINK</label>
+          <input class="field-input" id="s-qr" placeholder="https://i.ibb.co/..."/>
+          <label class="field-label">UPI ID</label>
+          <input class="field-input" id="s-upi" placeholder="yourname@upi"/>
+          <label class="field-label">PROXY PRICE (₹)</label>
+          <input class="field-input" id="s-price" placeholder="99" type="number"/>
+          <div id="qr-preview-section">
+            <div id="qr-preview-label">QR PREVIEW</div>
+            <img id="qr-preview-img" src="" alt="QR Preview"/>
+          </div>
+          <button id="save-btn" onclick="saveSettings()">SAVE SETTINGS</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────
+const FIREBASE_CONFIG = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+const DEFAULT_PASS = "admin123";
+let db = null;
+let settings = {
+  password: DEFAULT_PASS,
+  qrUrl: "",
+  upiId: "",
+  price: "99"
+};
+let proxyFile = null;
+let recoverFile = null;
+
+// ── LOADING ──────────────────────────────────────────────
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('logo-area').classList.add('show');
+    document.getElementById('load-title').classList.add('show');
+    document.getElementById('load-sub').classList.add('show');
+  }, 300);
+  setTimeout(() => {
+    document.getElementById('progress-area').classList.add('show');
+    animateProgress();
+  }, 800);
+});
+
+function animateProgress() {
+  let pct = 0;
+  const bar = document.getElementById('prog-bar');
+  const pctTxt = document.getElementById('prog-pct');
+  const iv = setInterval(() => {
+    pct += Math.random() * 4 + 1;
+    if (pct >= 100) { pct = 100; clearInterval(iv); finishLoad(); }
+    bar.style.width = pct + '%';
+    pctTxt.textContent = Math.floor(pct) + '%';
+  }, 60);
+}
+
+function finishLoad() {
+  setTimeout(() => {
+    document.getElementById('loading').style.opacity = '0';
+    document.getElementById('loading').style.transition = 'opacity .5s';
+    setTimeout(() => {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      initFirebase();
+    }, 500);
+  }, 400);
+}
+
+// ── FIREBASE ─────────────────────────────────────────────
+function initFirebase() {
+  const dot = document.getElementById('fb-dot');
+  const txt = document.getElementById('fb-txt');
+  try {
+    if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY") {
+      firebase.initializeApp(FIREBASE_CONFIG);
+      db = firebase.database();
+      dot.className = 'on'; txt.textContent = 'CONNECTED';
+      loadSettingsFromDb();
+      listenRequests();
+    } else {
+      dot.className = 'err'; txt.textContent = 'LOCAL MODE';
+      loadLocalSettings();
+    }
+  } catch(e) {
+    dot.className = 'err'; txt.textContent = 'LOCAL MODE';
+    loadLocalSettings();
+  }
+}
+
+function loadLocalSettings() {
+  const saved = localStorage.getItem('ff_settings');
+  if (saved) settings = {...settings, ...JSON.parse(saved)};
+  applySettings();
+}
+
+function loadSettingsFromDb() {
+  if (!db) return;
+  db.ref('settings').on('value', snap => {
+    if (snap.val()) { settings = {...settings, ...snap.val()}; applySettings(); }
+  });
+}
+
+function listenRequests() {
+  if (!db) return;
+  db.ref('requests').on('value', () => updateBadge());
+  db.ref('recover_requests').on('value', () => updateBadge());
+}
+
+function applySettings() {
+  const priceEl = document.getElementById('proxy-price');
+  if (priceEl) priceEl.textContent = '₹' + (settings.price || '99');
+  const qrImg = document.getElementById('proxy-qr-img');
+  if (qrImg && settings.qrUrl) { qrImg.src = settings.qrUrl; qrImg.style.display = 'block'; document.getElementById('proxy-qr-fallback').style.display = 'none'; }
+  const upiTxt = document.getElementById('proxy-upi-txt');
+  if (upiTxt && settings.upiId) upiTxt.textContent = 'UPI: ' + settings.upiId;
+}
+
+// ── MODAL HELPERS ────────────────────────────────────────
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  applySettings();
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  if (id === 'payment-modal') resetProxyForm();
+  if (id === 'recover-modal') resetRecoverForm();
+}
+
+// ── PROXY FORM ────────────────────────────────────────────
+function checkProxyForm() {
+  const uid = document.getElementById('proxy-uid').value.trim();
+  document.getElementById('proxy-submit-btn').disabled = !(uid && proxyFile);
+}
+
+function handleProxyFile(input) {
+  if (input.files[0]) {
+    proxyFile = input.files[0];
+    document.getElementById('proxy-ss-name').textContent = '✓ ' + proxyFile.name;
+    checkProxyForm();
+  }
+}
+
+function submitProxy() {
+  const uid = document.getElementById('proxy-uid').value.trim();
+  if (!uid || !proxyFile) return;
+  const btn = document.getElementById('proxy-submit-btn');
+  btn.disabled = true; btn.textContent = 'SUBMITTING...';
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = {
+      uid: uid,
+      type: 'proxy',
+      screenshot: e.target.result,
+      time: new Date().toLocaleString('en-IN'),
+      timestamp: Date.now(),
+      status: 'pending'
+    };
+    saveRequest('requests', data, uid);
+  };
+  reader.readAsDataURL(proxyFile);
+}
+
+function saveRequest(path, data, uid) {
+  let saved = false;
+  if (db) {
+    db.ref(path).push(data).then(() => {
+      if (!saved) { saved = true; showProxySuccess(uid); }
+    }).catch(() => {
+      if (!saved) { saved = true; saveRequestLocal(path, data); showProxySuccess(uid); }
+    });
+    setTimeout(() => { if (!saved) { saved = true; saveRequestLocal(path, data); showProxySuccess(uid); } }, 3000);
+  } else {
+    saveRequestLocal(path, data);
+    showProxySuccess(uid);
+  }
+}
+
+function saveRequestLocal(path, data) {
+  const key = 'ff_' + path;
+  const arr = JSON.parse(localStorage.getItem(key) || '[]');
+  data.id = 'local_' + Date.now();
+  arr.push(data);
+  localStorage.setItem(key, JSON.stringify(arr));
+  updateBadge();
+}
+
+function showProxySuccess(uid) {
+  document.getElementById('proxy-uid-show').textContent = 'UID: ' + uid;
+  document.getElementById('proxy-form').style.display = 'none';
+  document.getElementById('proxy-success').style.display = 'block';
+}
+
+function resetProxyForm() {
+  document.getElementById('proxy-form').style.display = 'block';
+  document.getElementById('proxy-success').style.display = 'none';
+  document.getElementById('proxy-uid').value = '';
+  document.getElementById('proxy-ss-name').textContent = '';
+  document.getElementById('proxy-submit-btn').disabled = true;
+  document.getElementById('proxy-submit-btn').textContent = 'SUBMIT REQUEST';
+  proxyFile = null;
+}
+
+// ── RECOVER FORM ──────────────────────────────────────────
+function checkRecoverForm() {
+  const uid = document.getElementById('recover-uid').value.trim();
+  document.getElementById('recover-submit-btn').disabled = !(uid && recoverFile);
+}
+
+function handleRecoverFile(input) {
+  if (input.files[0]) {
+    recoverFile = input.files[0];
+    document.getElementById('recover-id-name').textContent = '✓ ' + recoverFile.name;
+    checkRecoverForm();
+  }
+}
+
+function submitRecover() {
+  const uid = document.getElementById('recover-uid').value.trim();
+  if (!uid || !recoverFile) return;
+  const btn = document.getElementById('recover-submit-btn');
+  btn.disabled = true; btn.textContent = 'SUBMITTING...';
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = {
+      uid: uid,
+      type: 'recover',
+      idPhoto: e.target.result,
+      time: new Date().toLocaleString('en-IN'),
+      timestamp: Date.now(),
+      status: 'pending'
+    };
+    let saved = false;
+    if (db) {
+      db.ref('recover_requests').push(data).then(() => {
+        if (!saved) { saved = true; showRecoverSuccess(uid); }
+      }).catch(() => {
+        if (!saved) { saved = true; saveRequestLocal('recover_requests', data); showRecoverSuccess(uid); }
+      });
+      setTimeout(() => { if (!saved) { saved = true; saveRequestLocal('recover_requests', data); showRecoverSuccess(uid); } }, 3000);
+    } else {
+      saveRequestLocal('recover_requests', data);
+      showRecoverSuccess(uid);
+    }
+  };
+  reader.readAsDataURL(recoverFile);
+}
+
+function showRecoverSuccess(uid) {
+  document.getElementById('recover-uid-show').textContent = uid;
+  document.getElementById('recover-form').style.display = 'none';
+  document.getElementById('recover-success').style.display = 'block';
+}
+
+function resetRecoverForm() {
+  document.getElementById('recover-form').style.display = 'block';
+  document.getElementById('recover-success').style.display = 'none';
+  document.getElementById('recover-uid').value = '';
+  document.getElementById('recover-id-name').textContent = '';
+  document.getElementById('recover-submit-btn').disabled = true;
+  document.getElementById('recover-submit-btn').textContent = 'SUBMIT FOR REVIEW';
+  recoverFile = null;
+}
+
+// ── BADGE ─────────────────────────────────────────────────
+function updateBadge() {
+  let count = 0;
+  if (db) return; // Firebase handles real-time
+  const proxy = JSON.parse(localStorage.getItem('ff_requests') || '[]').filter(r => r.status === 'pending').length;
+  const recover = JSON.parse(localStorage.getItem('ff_recover_requests') || '[]').filter(r => r.status === 'pending').length;
+  count = proxy + recover;
+  const badge = document.getElementById('pending-badge');
+  if (count > 0) { badge.style.display = 'flex'; badge.textContent = count; }
+  else { badge.style.display = 'none'; }
+}
+
+// ── ADMIN ─────────────────────────────────────────────────
+function openAdmin() { openModal('admin-modal'); }
+
+function closeAdmin() {
+  closeModal('admin-modal');
+  document.getElementById('admin-pass').value = '';
+}
+
+function tryAdminLogin() {
+  const pass = document.getElementById('admin-pass').value;
+  if (pass === settings.password) {
+    document.getElementById('admin-login').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'flex';
+    loadAdminData();
+    loadSettingsUI();
+  } else {
+    document.getElementById('admin-pass').style.borderColor = '#f44336';
+    setTimeout(() => { document.getElementById('admin-pass').style.borderColor = '#ff4500'; }, 1000);
+  }
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    const tabs = ['requests','recover','history','settings'];
+    b.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'requests' || tab === 'recover' || tab === 'history') loadAdminData();
+}
+
+function loadAdminData() {
+  if (db) {
+    loadFirebaseRequests();
+  } else {
+    loadLocalRequests();
+  }
+}
+
+function loadLocalRequests() {
+  const proxyArr = JSON.parse(localStorage.getItem('ff_requests') || '[]');
+  const recoverArr = JSON.parse(localStorage.getItem('ff_recover_requests') || '[]');
+  const pending = proxyArr.filter(r => r.status === 'pending');
+  const recoverPending = recoverArr.filter(r => r.status === 'pending');
+  const history = [...proxyArr, ...recoverArr].filter(r => r.status !== 'pending').sort((a,b) => b.timestamp - a.timestamp);
+
+  document.getElementById('proxy-count-tab').textContent = pending.length;
+  document.getElementById('recover-count-tab').textContent = recoverPending.length;
+
+  renderProxyList(pending);
+  renderRecoverList(recoverPending);
+  renderHistory(history);
+  updateBadge();
+}
+
+function renderProxyList(arr) {
+  const el = document.getElementById('requests-list');
+  if (!arr.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-txt">No pending proxy requests</div></div>'; return; }
+  el.innerHTML = arr.map((r, i) => `
+    <div class="request-card" id="pcard-${i}">
+      <div class="req-head">
+        <div><div class="req-uid">UID: ${r.uid}</div><div class="req-time">${r.time}</div></div>
+        <span class="status-badge badge-pending">PENDING</span>
+      </div>
+      <div class="req-type-tag tag-proxy">🔥 PROXY REQUEST</div>
+      ${r.screenshot ? `<button class="view-ss-btn" onclick="toggleSS('pss-${i}')">👁 View Payment SS</button><br/><img class="ss-preview" id="pss-${i}" src="${r.screenshot}"/>` : ''}
+      <div class="req-actions">
+        <button class="approve-btn" onclick="actionRequest('requests','${r.id||i}','approved','pcard-${i}')">✓ APPROVE</button>
+        <button class="reject-btn" onclick="actionRequest('requests','${r.id||i}','cancelled','pcard-${i}')">✕ REJECT</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderRecoverList(arr) {
+  const el = document.getElementById('recover-list');
+  if (!arr.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-txt">No pending recovery requests</div></div>'; return; }
+  el.innerHTML = arr.map((r, i) => `
+    <div class="request-card recover-card" id="rcard-${i}">
+      <div class="req-head">
+        <div><div class="req-uid">UID: ${r.uid}</div><div class="req-time">${r.time}</div></div>
+        <span class="status-badge badge-pending">PENDING</span>
+      </div>
+      <div class="req-type-tag tag-recover">🆔 RECOVER REQUEST</div>
+      ${r.idPhoto ? `<button class="view-ss-btn blue" onclick="toggleSS('rss-${i}')">👁 View ID Photo</button><br/><img class="ss-preview" id="rss-${i}" src="${r.idPhoto}" style="border-color:#3949ab;"/>` : ''}
+      <div class="req-actions">
+        <button class="approve-btn" onclick="actionRequest('recover_requests','${r.id||i}','approved','rcard-${i}')">✓ GUIDED</button>
+        <button class="reject-btn" onclick="actionRequest('recover_requests','${r.id||i}','cancelled','rcard-${i}')">✕ REJECT</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderHistory(arr) {
+  const el = document.getElementById('history-list');
+  if (!arr.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">📜</div><div class="empty-txt">No history yet</div></div>'; return; }
+  el.innerHTML = arr.map(r => `
+    <div class="request-card ${r.type==='recover'?'recover-card':''}">
+      <div class="req-head">
+        <div><div class="req-uid">UID: ${r.uid}</div><div class="req-time">${r.time}</div></div>
+        <span class="status-badge ${r.status==='approved'?'badge-approved':'badge-cancelled'}">${r.status.toUpperCase()}</span>
+      </div>
+      <div class="req-type-tag ${r.type==='recover'?'tag-recover':'tag-proxy'}">${r.type==='recover'?'🆔 RECOVER':'🔥 PROXY'}</div>
+    </div>`).join('');
+}
+
+function toggleSS(id) {
+  const img = document.getElementById(id);
+  img.style.display = img.style.display === 'block' ? 'none' : 'block';
+}
+
+function actionRequest(path, id, status, cardId) {
+  if (db) {
+    db.ref(path + '/' + id).update({status}).then(() => loadAdminData());
+  } else {
+    const key = 'ff_' + path;
+    const arr = JSON.parse(localStorage.getItem(key) || '[]');
+    const item = arr.find(r => r.id === id) || arr[parseInt(id)];
+    if (item) item.status = status;
+    localStorage.setItem(key, JSON.stringify(arr));
+    loadLocalRequests();
+  }
+}
+
+function loadFirebaseRequests() {
+  if (!db) return;
+  db.ref('requests').once('value', snap => {
+    const all = snap.val() ? Object.entries(snap.val()).map(([k,v])=>({...v,id:k})) : [];
+    const pending = all.filter(r => r.status === 'pending');
+    document.getElementById('proxy-count-tab').textContent = pending.length;
+    renderProxyList(pending);
+  });
+  db.ref('recover_requests').once('value', snap => {
+    const all = snap.val() ? Object.entries(snap.val()).map(([k,v])=>({...v,id:k})) : [];
+    const pending = all.filter(r => r.status === 'pending');
+    document.getElementById('recover-count-tab').textContent = pending.length;
+    renderRecoverList(pending);
+  });
+  Promise.all([
+    db.ref('requests').once('value'),
+    db.ref('recover_requests').once('value')
+  ]).then(([proxySnap, recoverSnap]) => {
+    const proxy = proxySnap.val() ? Object.entries(proxySnap.val()).map(([k,v])=>({...v,id:k,type:'proxy'})) : [];
+    const recover = recoverSnap.val() ? Object.entries(recoverSnap.val()).map(([k,v])=>({...v,id:k,type:'recover'})) : [];
+    const history = [...proxy,...recover].filter(r=>r.status!=='pending').sort((a,b)=>b.timestamp-a.timestamp);
+    renderHistory(history);
+  });
+}
+
+// ── SETTINGS ─────────────────────────────────────────────
+function loadSettingsUI() {
+  document.getElementById('s-pass').value = settings.password || '';
+  document.getElementById('s-qr').value = settings.qrUrl || '';
+  document.getElementById('s-upi').value = settings.upiId || '';
+  document.getElementById('s-price').value = settings.price || '99';
+  if (settings.qrUrl) {
+    const prev = document.getElementById('qr-preview-img');
+    prev.src = settings.qrUrl; prev.style.display = 'block';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const qrInput = document.getElementById('s-qr');
+  if (qrInput) qrInput.addEventListener('input', function() {
+    const prev = document.getElementById('qr-preview-img');
+    if (this.value) { prev.src = this.value; prev.style.display = 'block'; }
+    else prev.style.display = 'none';
+  });
+});
+
+function saveSettings() {
+  settings.password = document.getElementById('s-pass').value || settings.password;
+  settings.qrUrl = document.getElementById('s-qr').value;
+  settings.upiId = document.getElementById('s-upi').value;
+  settings.price = document.getElementById('s-price').value || '99';
+  if (db) {
+    db.ref('settings').set(settings);
+  } else {
+    localStorage.setItem('ff_settings', JSON.stringify(settings));
+  }
+  applySettings();
+  const btn = document.getElementById('save-btn');
+  btn.textContent = 'SAVED ✓'; btn.classList.add('saved');
+  setTimeout(() => { btn.textContent = 'SAVE SETTINGS'; btn.classList.remove('saved'); }, 2000);
+}
+</script>
+</body>
+</html>
